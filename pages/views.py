@@ -1,5 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseBadRequest
+from django.contrib import messages
+from pages.forms import PostForm
 from pages.models import Post
 
 # Create your views here.
@@ -35,13 +37,15 @@ def post_list(request):
 
 def post_create(request):
     if request.method == 'POST':
-        title = request.POST.get('title')
-        body = request.POST.get('body')
-        if not title or not body:
-            return HttpResponseBadRequest('Title and body are required.')
-        Post.objects.create(title=title, body=body)
-        return redirect('post_list')
-    return render(request, 'post_form.html')
+        form = PostForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'New post created')
+            return redirect('post_list')
+        messages.error(request, 'Please correct the errors below.')
+    else:
+        form = PostForm()
+    return render(request, 'post_form.html', {'form': form})
 
 def post_view(request, pk):
     # post = get_object_or_404(Post, pk=pk)
@@ -51,15 +55,21 @@ def post_view(request, pk):
 def post_update(request, pk):
     post = get_object_or_404(Post, pk=pk)
     if request.method == 'POST':
-        post.title = request.POST.get('title') or post.title
-        post.body = request.POST.get('body') or post.body
-        post.save()
-        return redirect('post_view', pk=pk)
-    return render(request, 'post_form.html', {'post': post})
+        form = PostForm(request.POST, instance=post)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Post updated')
+            return redirect('post_list')
+        messages.error(request, 'Please correct the errors below.')
+    else:
+        form = PostForm(instance=post)
+    return render(request, 'post_form.html', {'form': form})
+
 
 def post_delete(request, pk):
     post = get_object_or_404(Post, pk=pk)
     if request.method == 'POST':
         post.delete()
+        messages.success(request, f"Post `{post.title}` was deleted")
         return redirect('post_list')
     return render(request, 'post_confirm_delete.html', {'post': post})
