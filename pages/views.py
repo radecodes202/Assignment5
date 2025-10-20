@@ -1,10 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseBadRequest
 from django.contrib import messages
-from pages.forms import PostForm
-from pages.models import Post
+from django.views.decorators.http import require_http_methods
+from pages.forms import PostForm, CommentForm
+from pages.models import Post, Comment
+
 
 # Create your views here.
+
 def home(request):
     ctx = {"title": "Home", "features": ["Django", "Templates", "Static files"]}
     return render(request, "home.html", ctx)
@@ -47,10 +50,10 @@ def post_create(request):
         form = PostForm()
     return render(request, 'post_form.html', {'form': form})
 
-def post_view(request, pk):
-    # post = get_object_or_404(Post, pk=pk)
-    post = Post.objects.get(pk=pk)
-    return render(request, 'post_view.html', {'post': post})
+# def post_view(request, pk):
+#     # post = get_object_or_404(Post, pk=pk)
+#     post = Post.objects.get(pk=pk)
+#     return render(request, 'post_view.html', {'post': post})
 
 def post_update(request, pk):
     post = get_object_or_404(Post, pk=pk)
@@ -73,3 +76,41 @@ def post_delete(request, pk):
         messages.success(request, f"Post `{post.title}` was deleted")
         return redirect('post_list')
     return render(request, 'post_confirm_delete.html', {'post': post})
+
+def post_view(request, pk):
+    """Display post detail with comments and comment form"""
+    post = get_object_or_404(Post, pk=pk)
+    comments = post.comments.all().order_by('-created_at')
+    comment_form = CommentForm()
+    
+    context = {
+        'post': post,
+        'comments': comments,
+        'comment_form': comment_form,
+    }
+    return render(request, 'post_detail.html', context)
+
+@require_http_methods(["POST"])
+def add_comment(request, pk):
+    """Handle comment submission"""
+    post = get_object_or_404(Post, pk=pk)
+    comment_form = CommentForm(request.POST)
+    
+    if comment_form.is_valid():
+        comment = comment_form.save(commit=False)
+        comment.post = post
+        comment.save()
+        messages.success(request, 'Your comment has been submitted successfully!')
+        return redirect('post_view', pk=pk)
+    else:
+        # Re-render the page with errors
+        comments = post.comments.all().order_by('-created_at')
+        context = {
+            'post': post,
+            'comments': comments,
+            'comment_form': comment_form,
+        }
+        return render(request, 'post_detail.html', context)
+
+def csrf_failure(request, reason=""):
+    return render(request, "csrf_failure.html", {"reason": reason}, status=403)
